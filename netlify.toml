@@ -1,0 +1,18 @@
+# Netlify configuration for 基金即時估值
+# Static frontend from public/, API served by a serverless function.
+
+[build]
+  command = "npm run build:index"   # prebuild the fund search index (optional; safe to fail)
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  # Bundle the prebuilt fund index into the function so search is instant on cold start.
+  included_files = ["data/**"]
+
+# Send all API calls to the function that wraps the Express app.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200

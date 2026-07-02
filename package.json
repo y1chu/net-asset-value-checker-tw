@@ -1,1 +1,19 @@
-{"name":"nav-checker-tw","version":"0.1.0","private":true,"type":"module","scripts":{"start":"node server/index.js"},"dependencies":{"cheerio":"^1.2.0","express":"^5.2.1","iconv-lite":"^0.7.2"},"devDependencies":{"playwright":"^1.61.1"}}
+{
+  "name": "nav-checker-tw",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "build:index": "node scripts/build-index.mjs"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "express": "^5.2.1",
+    "iconv-lite": "^0.7.2",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

@@ -3,10 +3,15 @@
 import iconv from 'iconv-lite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_FILE = path.join(__dirname, '..', 'data', 'fund-index.json');
+// Read order: committed/prebuilt file (works read-only on Netlify), then the
+// writable runtime cache. Write to data/ locally, falling back to the OS temp
+// dir when the bundle is read-only (Netlify functions).
+const BUNDLED_FILE = path.join(__dirname, '..', 'data', 'fund-index.json');
+const TMP_FILE = path.join(os.tmpdir(), 'nav-fund-index.json');
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // funds change slowly; rebuild weekly
 const COMPANY_LIST = 'https://www.moneydj.com/funddj/ya/YP081000List.djhtm?a=1';
 
@@ -65,18 +70,24 @@ async function build() {
   const funds = await crawl();
   if (funds.length === 0) throw new Error('基金清單建立失敗（來源無資料）');
   mem = { funds, builtAt: Date.now() };
-  try {
-    await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
-    await fs.writeFile(CACHE_FILE, JSON.stringify(mem), 'utf8');
-  } catch { /* disk cache is best-effort */ }
+  const payload = JSON.stringify(mem);
+  for (const target of [BUNDLED_FILE, TMP_FILE]) {  // first writable location wins
+    try {
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, payload, 'utf8');
+      break;
+    } catch { /* try next / disk cache is best-effort */ }
+  }
   return mem;
 }
 
 async function loadFromDisk() {
-  try {
-    const raw = JSON.parse(await fs.readFile(CACHE_FILE, 'utf8'));
-    if (raw?.funds?.length) mem = raw;
-  } catch { /* no cache yet */ }
+  for (const source of [BUNDLED_FILE, TMP_FILE]) {
+    try {
+      const raw = JSON.parse(await fs.readFile(source, 'utf8'));
+      if (raw?.funds?.length) { mem = raw; return; }
+    } catch { /* try next */ }
+  }
 }
 
 // Returns the index, building/refreshing as needed. If a stale cache exists,

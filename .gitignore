@@ -1,3 +1,10 @@
 node_modules
 .agents
 skills-lock.json
+.design\ui-redesign
+
+# Generated at build time (npm run build:index) and bundled into the function
+data/
+# Netlify local state
+.netlify/
+*.log
