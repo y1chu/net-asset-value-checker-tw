@@ -35,8 +35,8 @@ Best because every `git push` redeploys automatically.
    git remote add origin https://github.com/<you>/nav-checker-tw.git
    git push -u origin main
    ```
-   > `node_modules/` and `data/` are gitignored — that's fine, Netlify installs deps and
-   > regenerates the index during the build.
+   > `node_modules/` is gitignored (Netlify installs deps). `data/fund-index.json` **is**
+   > committed on purpose so search works instantly without a slow runtime crawl.
 
 2. **Create the site on Netlify**: go to <https://app.netlify.com> → **Add new site → Import an existing project** → pick your repo.
 

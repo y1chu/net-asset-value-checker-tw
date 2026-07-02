@@ -6,12 +6,18 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Read order: committed/prebuilt file (works read-only on Netlify), then the
-// writable runtime cache. Write to data/ locally, falling back to the OS temp
-// dir when the bundle is read-only (Netlify functions).
-const BUNDLED_FILE = path.join(__dirname, '..', 'data', 'fund-index.json');
+// import.meta.url is undefined once bundled to CommonJS (Netlify esbuild); fall back to cwd.
+const __dirname = import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
+// Read the prebuilt/committed index from wherever it landed (source tree or the
+// function's bundle root), then the writable runtime cache. Writes go to data/
+// locally, falling back to the OS temp dir when the bundle is read-only.
 const TMP_FILE = path.join(os.tmpdir(), 'nav-fund-index.json');
+const READ_PATHS = [
+  path.join(__dirname, '..', 'data', 'fund-index.json'),
+  path.join(process.cwd(), 'data', 'fund-index.json'),
+  TMP_FILE,
+];
+const WRITE_PATHS = [path.join(__dirname, '..', 'data', 'fund-index.json'), TMP_FILE];
 const TTL_MS = 7 * 24 * 60 * 60 * 1000; // funds change slowly; rebuild weekly
 const COMPANY_LIST = 'https://www.moneydj.com/funddj/ya/YP081000List.djhtm?a=1';
 
@@ -71,7 +77,7 @@ async function build() {
   if (funds.length === 0) throw new Error('基金清單建立失敗（來源無資料）');
   mem = { funds, builtAt: Date.now() };
   const payload = JSON.stringify(mem);
-  for (const target of [BUNDLED_FILE, TMP_FILE]) {  // first writable location wins
+  for (const target of WRITE_PATHS) {  // first writable location wins
     try {
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, payload, 'utf8');
@@ -82,7 +88,7 @@ async function build() {
 }
 
 async function loadFromDisk() {
-  for (const source of [BUNDLED_FILE, TMP_FILE]) {
+  for (const source of READ_PATHS) {
     try {
       const raw = JSON.parse(await fs.readFile(source, 'utf8'));
       if (raw?.funds?.length) { mem = raw; return; }

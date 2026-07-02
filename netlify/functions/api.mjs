@@ -1,5 +1,6 @@
 // Wraps the shared Express app as a single Netlify Function.
 // A redirect (see netlify.toml) sends /api/* here.
+// The .mjs extension makes Netlify bundle this as ESM so import.meta.url stays valid.
 import serverless from 'serverless-http';
 import { app } from '../../server/app.js';
 

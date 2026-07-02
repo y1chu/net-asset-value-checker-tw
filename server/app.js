@@ -8,7 +8,9 @@ import { getStockMap, resolveName } from './stocks.js';
 import { getQuotes } from './prices.js';
 import { searchFunds } from './fundindex.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// import.meta.url is undefined once a bundler (Netlify's esbuild) emits CommonJS,
+// which would crash fileURLToPath. Fall back to cwd so the module always loads.
+const __dirname = import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
 export const app = express();
 
 // Serve the static frontend locally. On Netlify the CDN serves public/ directly,

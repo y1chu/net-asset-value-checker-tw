@@ -3,8 +3,9 @@ node_modules
 skills-lock.json
 .design\ui-redesign
 
-# Generated at build time (npm run build:index) and bundled into the function
-data/
 # Netlify local state
 .netlify/
 *.log
+
+# NOTE: data/fund-index.json is intentionally committed so search works on
+# Netlify without a slow runtime crawl. `npm run build:index` refreshes it.
