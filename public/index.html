@@ -7,6 +7,13 @@
 <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)" />
 <title>基金即時估值</title>
 
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="基金估值" />
+
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-SJY1D6GTKD"></script>
 <script>
@@ -22,7 +29,6 @@
 <link rel="stylesheet" href="tokens.css" />
 <link rel="stylesheet" href="styles.css" />
 <script>
-  // Resolve theme before first paint to avoid a flash.
   (function () {
     try {
       var t = localStorage.getItem('theme');
@@ -39,9 +45,9 @@
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></g></svg>
         <span id="favCount" class="fav-count hidden"></span>
       </button>
-      <div class="brand">
+      <button type="button" id="homeBtn" class="brand" aria-label="回首頁">
         <span class="brand-name">基金即時估值</span>
-      </div>
+      </button>
     </div>
     <button type="button" id="themeBtn" class="icon-btn" aria-label="切換深淺色">
       <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><g stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="5.2" y1="5.2" x2="6.9" y2="6.9"/><line x1="17.1" y1="17.1" x2="18.8" y2="18.8"/><line x1="18.8" y1="5.2" x2="17.1" y2="6.9"/><line x1="6.9" y1="17.1" x2="5.2" y2="18.8"/></g></svg>
@@ -60,7 +66,6 @@
       <ul id="suggest" class="suggest hidden" role="listbox" aria-label="搜尋結果"></ul>
     </div>
   </form>
-
 </header>
 
 <!-- Favorites drawer -->
@@ -74,66 +79,129 @@
       </button>
     </div>
     <div id="favList" class="fav-list"></div>
-    <p class="drawer-hint">搜尋基金後，點右上角 ★ 加入常用。</p>
+    <p class="drawer-hint">搜尋基金後，點右上角 ★ 加入常用。淨值於每次開啟時更新。</p>
   </aside>
 </div>
 
-<main id="main" class="app-main" data-state="empty">
+<main id="main" class="app-main" data-view="home">
 
-  <!-- Empty state -->
-  <section class="state-empty">
-    <div class="empty-glyph" aria-hidden="true"></div>
-    <p class="empty-title">看今天該不該買</p>
-    <p class="empty-hint">搜尋基金名稱或代碼，即時估算今日漲跌。</p>
+  <!-- HOME: ranking boards -->
+  <section id="homeView" class="view-home">
+    <div id="marketStrip" class="market-strip hidden"></div>
+    <div id="favBoard" class="board hidden">
+      <div class="board-head">
+        <div class="board-titles"><span class="board-title">常用</span><span class="board-sub">今日估算漲跌</span></div>
+        <div class="seg" data-board="fav">
+          <button type="button" data-dir="up" class="on">漲幅</button><button type="button" data-dir="down">跌幅</button>
+        </div>
+      </div>
+      <ol id="favBoardList" class="board-list"></ol>
+    </div>
+
+    <div id="allBoard" class="board">
+      <div class="board-head">
+        <div class="board-titles"><span class="board-title">全部</span><span class="board-sub">熱門 40 檔 · 今日估算</span></div>
+        <div class="seg" data-board="all">
+          <button type="button" data-dir="up" class="on">漲幅</button><button type="button" data-dir="down">跌幅</button>
+        </div>
+      </div>
+      <ol id="allBoardList" class="board-list"></ol>
+    </div>
+    <p class="disclaimer">估算依各基金每月揭露之前十大持股加權即時股價計算，非官方淨值，僅供判斷當日方向參考。</p>
   </section>
 
-  <!-- Fund card: hero + trust strip -->
-  <section class="fund-card" aria-live="polite">
-    <div class="fund-head">
-      <h1 id="fundName" class="fund-name">
-        <span class="skeleton skel-name"></span>
-      </h1>
-      <button id="starBtn" class="star-btn" aria-label="加入常用" aria-pressed="false">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="star-path" d="M12 3.4l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.7l-5.2 2.72.99-5.8-4.21-4.1 5.82-.85z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-      </button>
-    </div>
+  <!-- DETAIL: one fund -->
+  <section id="detailView" class="view-detail" data-state="loading">
+    <button type="button" id="backBtn" class="back-btn">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><polyline points="15 5 8 12 15 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      首頁
+    </button>
 
-    <div class="hero">
-      <div id="estArrow" class="est-arrow" aria-hidden="true"></div>
-      <div id="estMove" class="est-move"><span class="skeleton skel-hero"></span></div>
-      <div class="est-label">今日估算漲跌</div>
-      <div class="est-sub">依已揭露持股加權估算</div>
-      <div id="estError" class="est-error"></div>
-    </div>
+    <section class="fund-card" aria-live="polite">
+      <div class="fund-head">
+        <h1 id="fundName" class="fund-name"><span class="skeleton skel-name"></span></h1>
+        <button id="starBtn" class="star-btn" aria-label="加入常用" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path class="star-path" d="M12 3.4l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.7l-5.2 2.72.99-5.8-4.21-4.1 5.82-.85z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
 
-    <dl id="trust" class="trust-strip"></dl>
-  </section>
+      <div class="hero">
+        <div id="estArrow" class="est-arrow" aria-hidden="true"></div>
+        <div id="estMove" class="est-move"><span class="skeleton skel-hero"></span></div>
+        <div class="est-label">今日估算漲跌</div>
+        <div class="est-sub">依已揭露持股加權估算</div>
+        <div id="benchmark" class="benchmark hidden"></div>
+        <div id="accNote" class="acc-note hidden"></div>
+        <div id="estError" class="est-error"></div>
+      </div>
 
-  <!-- Holdings -->
-  <section class="holdings-section">
-    <div class="section-head">
-      <span class="section-label">持股明細</span>
-      <span class="section-note">前十大 · 依權重</span>
-    </div>
-    <table class="holdings">
-      <thead>
-        <tr>
-          <th scope="col">個股</th>
-          <th scope="col" class="num">權重</th>
-          <th scope="col" class="num">現價</th>
-          <th scope="col" class="num">漲跌</th>
-          <th scope="col" class="num">貢獻</th>
-        </tr>
-      </thead>
-      <tbody id="holdingsBody"></tbody>
-    </table>
-    <p class="disclaimer">
-      估算僅涵蓋每月揭露之前十大持股，非完整投資組合，與基金公司公告淨值必有落差，僅供判斷當日方向參考。
-    </p>
+      <div id="navLine" class="nav-line hidden">
+        <span class="nav-label">官方淨值</span>
+        <span id="navValue" class="nav-value">—</span>
+        <span id="navChange" class="nav-change"></span>
+        <span id="navDate" class="nav-date"></span>
+      </div>
+
+      <dl id="trust" class="trust-strip"></dl>
+    </section>
+
+    <section id="chartCard" class="chart-card hidden">
+      <div class="chart-head">
+        <div class="chart-titles">
+          <span class="chart-title">淨值走勢</span>
+          <span id="chartChange" class="chart-change"></span>
+        </div>
+        <div class="seg" id="chartRange">
+          <button type="button" data-range="22">1月</button>
+          <button type="button" data-range="66">3月</button>
+          <button type="button" data-range="132" class="on">6月</button>
+          <button type="button" data-range="252">1年</button>
+        </div>
+      </div>
+      <div id="navChart" class="nav-chart"></div>
+      <div class="chart-foot"><span id="chartStart"></span><span id="chartEnd"></span></div>
+    </section>
+
+    <section class="holdings-section">
+      <div class="section-head">
+        <span class="section-label">持股明細</span>
+        <span class="section-note">前十大 · 依權重</span>
+      </div>
+      <table class="holdings">
+        <thead>
+          <tr>
+            <th scope="col">個股</th>
+            <th scope="col" class="num">權重</th>
+            <th scope="col" class="num">現價</th>
+            <th scope="col" class="num">漲跌</th>
+            <th scope="col" class="num">貢獻</th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody"></tbody>
+      </table>
+      <p class="disclaimer">
+        估算僅涵蓋每月揭露之前十大持股，非完整投資組合，與基金公司公告淨值必有落差，僅供判斷當日方向參考。
+      </p>
+    </section>
+
+    <section id="fundamentals" class="facts-card hidden">
+      <div class="section-head">
+        <span class="section-label">基金資料</span>
+        <span id="factsCategory" class="section-note"></span>
+      </div>
+      <div id="factsReturns" class="facts-returns"></div>
+      <dl id="factsGrid" class="facts-grid"></dl>
+      <p class="facts-src">資料來源：鉅亨網</p>
+    </section>
   </section>
 
 </main>
 
 <script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+</script>
 </body>
 </html>

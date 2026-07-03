@@ -2,10 +2,18 @@
 // search is instant on the first serverless cold start. Never fails the build:
 // if the crawl can't run, the function falls back to crawling on demand.
 import { getFundIndex } from '../server/fundindex.js';
+import { getCnyesIndex } from '../server/cnyesindex.js';
 
 try {
   const funds = await getFundIndex();
   console.log(`Prebuilt fund index: ${funds.length} funds.`);
 } catch (err) {
   console.warn(`Fund index prebuild skipped: ${err.message}. Runtime will build on demand.`);
+}
+
+try {
+  const pairs = await getCnyesIndex();
+  console.log(`Prebuilt cnyes index: ${pairs.length} funds.`);
+} catch (err) {
+  console.warn(`cnyes index prebuild skipped: ${err.message}. Runtime will build on demand.`);
 }

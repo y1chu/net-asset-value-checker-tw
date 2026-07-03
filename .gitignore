@@ -1,7 +1,7 @@
 node_modules
 .agents
 skills-lock.json
-.design\ui-redesign
+.design
 
 # Netlify local state
 .netlify/
