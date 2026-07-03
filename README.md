@@ -1,3 +1,4 @@
+[![Netlify Status](https://api.netlify.com/api/v1/badges/e719ef59-2a5b-4a35-b619-c01d690ab537/deploy-status)](https://app.netlify.com/projects/tw-nav-checker/deploys)
 # 基金即時估值 (Taiwan Fund Live NAV Estimator)
 
 每天想買基金前，不用再手動把基金的股票組成一檔檔輸入看盤 App。
