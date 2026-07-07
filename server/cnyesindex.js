@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { fetchT } from './http.js';
 
 const __dirname = import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
 const TMP_FILE = path.join(os.tmpdir(), 'nav-cnyes-index.json');
@@ -35,7 +36,7 @@ function indexPairs(pairs) {
 }
 
 async function crawl() {
-  const res = await fetch(SITEMAP, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const res = await fetchT(SITEMAP, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 12000);
   if (!res.ok) throw new Error(`cnyes sitemap ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   let xml;

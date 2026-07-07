@@ -1,6 +1,7 @@
 // Scrapes a Taiwan fund's disclosed holdings (top holdings + weights) from
 // MoneyDJ, which serves the 嘉實資訊 data and keys off just the fund code.
 import iconv from 'iconv-lite';
+import { fetchT } from './http.js';
 
 const cache = new Map(); // code -> { data, builtAt }
 const TTL_MS = 6 * 60 * 60 * 1000; // holdings are monthly; refresh a few times a day is plenty
@@ -17,7 +18,7 @@ export async function getHoldings(fundCode) {
   if (hit && Date.now() - hit.builtAt < TTL_MS) return hit.data;
 
   const url = `https://www.moneydj.com/funddj/yp/yp013000.djhtm?a=${code}`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const res = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 8000);
   if (!res.ok) throw new Error(`MoneyDJ 回應 ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
   const html = iconv.decode(buf, 'big5');

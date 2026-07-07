@@ -5,7 +5,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { searchFunds } from './fundindex.js';
 import { computeFund, computeMany } from './estimate.js';
-import { getRanking } from './ranking.js';
 import { getNavHistory } from './navhistory.js';
 import { getMarket } from './market.js';
 
@@ -64,12 +63,3 @@ app.get('/api/market', async (req, res) => {
   }
 });
 
-// GET /api/ranking -> curated "全部" board (estimates, sorted, cached) + market
-app.get('/api/ranking', async (req, res) => {
-  try {
-    const [results, market] = await Promise.all([getRanking(), getMarket().catch(() => null)]);
-    res.json({ results, market, updatedAt: new Date().toISOString() });
-  } catch (err) {
-    res.status(500).json({ error: err.message || String(err) });
-  }
-});

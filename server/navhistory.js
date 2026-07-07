@@ -1,13 +1,14 @@
 // Fetches a fund's NAV history + fundamentals from cnyes (one endpoint returns
 // both), resolving the cnyes id by name. Cached per id (values update daily).
 import { resolveCnyesId } from './cnyesindex.js';
+import { fetchT } from './http.js';
 
 const cache = new Map(); // cnyesId -> { data, at }
 const TTL_MS = 6 * 60 * 60 * 1000;
 
 async function fetchCnyes(id) {
   const url = `https://api.cnyes.com/fund/api/v1/funds/${id}/nav?period=6M`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Origin: 'https://fund.cnyes.com', Referer: 'https://fund.cnyes.com/' } });
+  const res = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0', Origin: 'https://fund.cnyes.com', Referer: 'https://fund.cnyes.com/' } }, 7000);
   if (!res.ok) throw new Error(`cnyes nav ${res.status}`);
   const it = (await res.json()).items || {};
 

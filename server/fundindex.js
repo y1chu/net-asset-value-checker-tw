@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { fetchT } from './http.js';
 
 // import.meta.url is undefined once bundled to CommonJS (Netlify esbuild); fall back to cwd.
 const __dirname = import.meta.url ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
@@ -25,9 +26,9 @@ let mem = null;        // { funds, builtAt }
 let building = null;   // in-flight build promise (dedupe concurrent triggers)
 
 async function fetchBig5(url) {
-  const res = await fetch(url, {
+  const res = await fetchT(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.moneydj.com/funddj/' },
-  });
+  }, 9000);
   return iconv.decode(Buffer.from(await res.arrayBuffer()), 'big5');
 }
 

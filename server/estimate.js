@@ -1,5 +1,5 @@
-// Shared estimation logic used by the fund detail, the favorites batch, and the
-// rankings. Batch mode fetches every fund's prices in one deduped, chunked call.
+// Shared estimation logic used by the fund detail and the favorites batch.
+// Batch mode fetches every fund's prices in one deduped, chunked call.
 import { getHoldings } from './holdings.js';
 import { getStockMap, resolveName } from './stocks.js';
 import { getQuotes } from './prices.js';

@@ -1,4 +1,5 @@
 // Live market indices (加權指數 TAIEX + 櫃買指數 OTC) from TWSE MIS, as a benchmark.
+import { fetchT } from './http.js';
 let cache = null; // { v, at }
 const TTL_MS = 20 * 1000;
 
@@ -7,7 +8,7 @@ export async function getMarket() {
   const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw|otc_o00.tw&json=1&delay=0&_=${Date.now()}`;
   let v = { taiex: null, otc: null };
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://mis.twse.com.tw/stock/index.jsp' } });
+    const res = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://mis.twse.com.tw/stock/index.jsp' } }, 5000);
     const json = await res.json();
     const pick = (ch) => {
       const m = (json.msgArray || []).find((x) => x.ch === ch);

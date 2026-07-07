@@ -77,18 +77,18 @@ $('backBtn').addEventListener('click', showHome);
 
 /* ---------------------------- Home: ranking boards ---------------------------- */
 async function loadHome() {
-  loadRanking();
-  if (favorites.length) { $('favBoard').classList.remove('hidden'); loadFavEstimates(); }
-  else { $('favBoard').classList.add('hidden'); }
+  loadMarket();
+  if (favorites.length) {
+    $('favBoard').classList.remove('hidden');
+    $('homeEmpty').classList.add('hidden');
+    loadFavEstimates();
+  } else {
+    $('favBoard').classList.add('hidden');
+    $('homeEmpty').classList.remove('hidden');
+  }
 }
-async function loadRanking() {
-  if (!allRows) $('allBoardList').innerHTML = '<li class="board-loading">載入中…</li>';
-  try {
-    const r = await getJSON('/api/ranking');
-    allRows = r.results || [];
-    renderMarket(r.market);
-    renderBoard('all');
-  } catch { if (!allRows) $('allBoardList').innerHTML = '<li class="board-empty">載入失敗，稍後再試</li>'; }
+async function loadMarket() {
+  try { renderMarket(await getJSON('/api/market')); } catch { /* keep previous */ }
 }
 function renderMarket(m) {
   const el = $('marketStrip');

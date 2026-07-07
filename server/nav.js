@@ -1,6 +1,7 @@
 // Scrapes a fund's latest official NAV (淨值) from MoneyDJ's yp010000 page.
 // The NAV is published once per trading day, so a short in-memory cache is plenty.
 import iconv from 'iconv-lite';
+import { fetchT } from './http.js';
 
 const cache = new Map(); // code -> { data, at }
 const TTL_MS = 60 * 60 * 1000; // 1h
@@ -13,7 +14,7 @@ export async function getNav(fundCode) {
   if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
 
   const url = `https://www.moneydj.com/funddj/yp/yp010000.djhtm?a=${code}`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.moneydj.com/funddj/' } });
+  const res = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.moneydj.com/funddj/' } }, 7000);
   if (!res.ok) throw new Error(`MoneyDJ 淨值回應 ${res.status}`);
   const html = iconv.decode(Buffer.from(await res.arrayBuffer()), 'big5');
 

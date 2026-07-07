@@ -3,12 +3,20 @@
 // if the crawl can't run, the function falls back to crawling on demand.
 import { getFundIndex } from '../server/fundindex.js';
 import { getCnyesIndex } from '../server/cnyesindex.js';
+import { getStockMap } from '../server/stocks.js';
 
 try {
   const funds = await getFundIndex();
   console.log(`Prebuilt fund index: ${funds.length} funds.`);
 } catch (err) {
   console.warn(`Fund index prebuild skipped: ${err.message}. Runtime will build on demand.`);
+}
+
+try {
+  const m = await getStockMap();
+  console.log(`Prebuilt stock map: ${m.size} names.`);
+} catch (err) {
+  console.warn(`Stock map prebuild skipped: ${err.message}. Runtime will build on demand.`);
 }
 
 try {

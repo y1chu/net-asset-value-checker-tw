@@ -1,5 +1,6 @@
 // Live intraday quotes from the TWSE MIS endpoint (covers 上市 tse_ and 上櫃 otc_).
 // MIS caps how many channels one request can carry, so large sets are chunked.
+import { fetchT } from './http.js';
 const CHUNK = 40;
 
 function num(v) {
@@ -11,9 +12,9 @@ async function fetchChunk(valid, byCode) {
   const channels = valid.map((s) => `${s.exchange}_${s.code}.tw`).join('|');
   const url =
     `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${channels}&json=1&delay=0&_=${Date.now()}`;
-  const res = await fetch(url, {
+  const res = await fetchT(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://mis.twse.com.tw/stock/index.jsp' },
-  });
+  }, 7000);
   if (!res.ok) throw new Error(`TWSE 報價回應 ${res.status}`);
   const json = await res.json();
   for (const r of json.msgArray || []) {
