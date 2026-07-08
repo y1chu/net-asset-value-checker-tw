@@ -24,6 +24,10 @@ const fmtPrice = (v) => (v == null ? '—' : v.toLocaleString('en-US', { maximum
 const cls = (v) => (v == null ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
 const dirCls = (v) => (v == null ? 'dir-flat' : v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : 'dir-flat');
 const arrow = (v) => (v == null ? '' : v > 0 ? '▲' : v < 0 ? '▼' : '—');
+// Once the official NAV for today is published, that's the number to show; until
+// then, the intraday estimate is all we have.
+const primaryMove = (r) => (r && r.officialToday ? r.navChangePct : r?.estimatedMovePct);
+const moveTag = (r) => (r && r.officialToday ? '淨' : '估');
 const mmdd = (d) => (d ? d.replace(/^20\d\d\//, '').replace('/', '/') : '');
 const getJSON = async (url) => { const r = await fetch(url); const j = await r.json(); if (!r.ok) throw new Error(j.error || '載入失敗'); return j; };
 const fmtDate = (ts) => { const d = new Date(ts * 1000); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; };
@@ -114,18 +118,20 @@ function renderBoard(which) {
   const rows = which === 'all' ? allRows : favRows;
   const listEl = which === 'all' ? $('allBoardList') : $('favBoardList');
   if (!rows) return;
-  const ranked = rows.filter((r) => r.estimatedMovePct != null);
-  if (!ranked.length) { listEl.innerHTML = '<li class="board-empty">目前無估算資料（可能非交易時間或無台股持股）</li>'; return; }
+  const ranked = rows.filter((r) => primaryMove(r) != null);
+  if (!ranked.length) { listEl.innerHTML = '<li class="board-empty">目前無資料（可能非交易時間或無台股持股）</li>'; return; }
   const dir = boardDir[which];
   const sorted = [...ranked].sort((a, b) =>
-    dir === 'up' ? b.estimatedMovePct - a.estimatedMovePct : a.estimatedMovePct - b.estimatedMovePct);
+    dir === 'up' ? primaryMove(b) - primaryMove(a) : primaryMove(a) - primaryMove(b));
   const top = which === 'all' ? sorted.slice(0, 12) : sorted;
-  listEl.innerHTML = top.map((r, i) =>
-    `<li class="rank-row" data-code="${r.code}" data-name="${encodeURIComponent(r.name)}">
+  listEl.innerHTML = top.map((r, i) => {
+    const v = primaryMove(r);
+    return `<li class="rank-row" data-code="${r.code}" data-name="${encodeURIComponent(r.name)}">
        <span class="rank-num">${i + 1}</span>
        <span class="rank-name">${r.name}</span>
-       <span class="rank-move ${cls(r.estimatedMovePct)}">${arrow(r.estimatedMovePct)} ${fmtPct(r.estimatedMovePct)}</span>
-     </li>`).join('');
+       <span class="rank-move ${cls(v)}"><span class="move-tag">${moveTag(r)}</span>${arrow(v)} ${fmtPct(v)}</span>
+     </li>`;
+  }).join('');
 }
 document.querySelectorAll('.seg').forEach((seg) => {
   seg.addEventListener('click', (e) => {
@@ -168,8 +174,9 @@ function renderFavList() {
     const e = favEstimates.get(f.code);
     const cur = f.code === currentCode ? ' current' : '';
     const nav = e && e.nav != null ? `淨值 ${fmtPrice(e.nav)}` : '淨值 —';
-    const est = e && e.estimatedMovePct != null
-      ? `<span class="fav-est ${cls(e.estimatedMovePct)}">${arrow(e.estimatedMovePct)} ${fmtPct(e.estimatedMovePct)}</span>` : '';
+    const mv = e ? primaryMove(e) : null;
+    const est = mv != null
+      ? `<span class="fav-est ${cls(mv)}"><span class="move-tag">${moveTag(e)}</span>${arrow(mv)} ${fmtPct(mv)}</span>` : '';
     return `<div class="fav-item${cur}" data-code="${f.code}" data-name="${encodeURIComponent(f.name)}">
       <button type="button" class="fav-open">
         <span class="fav-name">${f.name}</span>
@@ -292,6 +299,7 @@ function showLoading() {
   $('navLine').classList.add('hidden');
   $('chartCard').classList.add('hidden');
   $('benchmark').classList.add('hidden');
+  $('estCompare').classList.add('hidden');
   $('accNote').classList.add('hidden');
   $('fundamentals').classList.add('hidden');
   $('trust').innerHTML = Array.from({ length: 3 }, () =>
@@ -311,14 +319,14 @@ async function load(code, settle) {
   try { render(await getJSON(`/api/fund/${encodeURIComponent(code)}`), settle); }
   catch (err) { if (!hasData) showError(err.message); }
 }
-function renderBenchmark(est, market) {
+function renderBenchmark(move, market) {
   const el = $('benchmark');
   const tx = market && market.taiex;
-  if (!tx || est == null) { el.classList.add('hidden'); return; }
-  const rel = est - tx.changePct;
+  if (!tx || move == null) { el.classList.add('hidden'); return; }
+  const rel = move - tx.changePct;
   el.innerHTML =
     `<span class="bm-label">大盤</span><span class="${cls(tx.changePct)}">${arrow(tx.changePct)} ${fmtPct(tx.changePct)}</span>
-     <span class="bm-label">估算相對</span><span class="bm-rel ${cls(rel)}">${fmtPct(rel)}</span>`;
+     <span class="bm-label">相對大盤</span><span class="bm-rel ${cls(rel)}">${fmtPct(rel)}</span>`;
   el.classList.remove('hidden');
 }
 function renderFundamentals(f) {
@@ -383,24 +391,37 @@ function render(d, settle) {
   $('fundName').textContent = `${currentName}（${d.fundCode}）`;
   updateStar();
 
-  hero.className = `hero ${dirCls(d.estimatedMovePct)}`;
-  $('estArrow').textContent = arrow(d.estimatedMovePct);
-  $('estMove').textContent = fmtPct(d.estimatedMovePct);
+  // Once today's official NAV is published, it becomes the headline; the estimate
+  // and its error move to a secondary line.
+  const official = !!(d.officialToday && d.navChangePct != null);
+  const heroVal = official ? d.navChangePct : d.estimatedMovePct;
+  hero.className = `hero ${dirCls(heroVal)}`;
+  $('estArrow').textContent = arrow(heroVal);
+  $('estMove').textContent = fmtPct(heroVal);
+  $('estLabel').textContent = official ? '今日淨值漲跌' : '今日估算漲跌';
+  $('estSub').textContent = official ? `官方公告淨值　${d.navDate ? mmdd(d.navDate) : ''}` : '依已揭露持股加權估算';
+  const ec = $('estCompare');
+  if (official && d.estimatedMovePct != null) {
+    const diff = d.estimatedMovePct - d.navChangePct;
+    ec.innerHTML = `<span class="ec-label">今日估算</span><span class="${cls(d.estimatedMovePct)}">${fmtPct(d.estimatedMovePct)}</span>`
+      + `<span class="ec-label">誤差</span><span class="ec-diff">${fmtPct(diff)}</span>`;
+    ec.classList.remove('hidden');
+  } else { ec.classList.add('hidden'); }
   if (settle) { hero.classList.remove('settle'); void hero.offsetWidth; hero.classList.add('settle'); }
 
-  // NAV line
+  // NAV line. When official (hero already shows today's change) don't repeat it here.
   if (d.nav != null) {
     $('navLine').classList.remove('hidden');
     $('navValue').textContent = fmtPrice(d.nav);
     const nc = $('navChange');
-    nc.textContent = d.navChangePct != null ? fmtPct(d.navChangePct) : '';
-    nc.className = `nav-change ${cls(d.navChangePct)}`;
+    if (official) { nc.textContent = ''; nc.className = 'nav-change'; }
+    else { nc.textContent = d.navChangePct != null ? fmtPct(d.navChangePct) : ''; nc.className = `nav-change ${cls(d.navChangePct)}`; }
     $('navDate').textContent = d.navDate ? mmdd(d.navDate) : '';
   } else {
     $('navLine').classList.add('hidden');
   }
 
-  renderBenchmark(d.estimatedMovePct, d.market);
+  renderBenchmark(heroVal, d.market);
   renderFundamentals(d.fundamentals);
   trackAccuracy(currentCode, d.estimatedMovePct, d.navDate, d.navChangePct);
 

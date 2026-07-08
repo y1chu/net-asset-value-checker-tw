@@ -90,7 +90,7 @@
     <div id="marketStrip" class="market-strip hidden"></div>
     <div id="favBoard" class="board hidden">
       <div class="board-head">
-        <div class="board-titles"><span class="board-title">常用</span><span class="board-sub">今日估算漲跌</span></div>
+        <div class="board-titles"><span class="board-title">常用</span><span class="board-sub">今日漲跌</span></div>
         <div class="seg" data-board="fav">
           <button type="button" data-dir="up" class="on">漲幅</button><button type="button" data-dir="down">跌幅</button>
         </div>
@@ -124,8 +124,9 @@
       <div class="hero">
         <div id="estArrow" class="est-arrow" aria-hidden="true"></div>
         <div id="estMove" class="est-move"><span class="skeleton skel-hero"></span></div>
-        <div class="est-label">今日估算漲跌</div>
-        <div class="est-sub">依已揭露持股加權估算</div>
+        <div id="estLabel" class="est-label">今日估算漲跌</div>
+        <div id="estSub" class="est-sub">依已揭露持股加權估算</div>
+        <div id="estCompare" class="est-compare hidden"></div>
         <div id="benchmark" class="benchmark hidden"></div>
         <div id="accNote" class="acc-note hidden"></div>
         <div id="estError" class="est-error"></div>

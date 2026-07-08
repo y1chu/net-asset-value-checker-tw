@@ -7,6 +7,13 @@ import { getNav } from './nav.js';
 import { getFundMeta } from './navhistory.js';
 import { getMarket } from './market.js';
 
+// Today's date in Taiwan (UTC+8) as "YYYY/MM/DD" to compare against navDate.
+function todayTW() {
+  const d = new Date(Date.now() + 8 * 3600 * 1000);
+  return `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+const isOfficialToday = (navDate) => !!navDate && navDate === todayTW();
+
 async function mapLimit(items, limit, fn) {
   const out = [];
   let i = 0;
@@ -68,6 +75,7 @@ export async function computeFund(code) {
     fundName: fund.fundName,
     asOf: fund.asOf,
     nav: nav.nav, navDate: nav.navDate, navChange: nav.navChange, navChangePct: nav.navChangePct,
+    officialToday: isOfficialToday(nav.navDate),
     estimatedMovePct: s.estimatedMovePct,
     disclosedWeight: s.disclosedWeight,
     pricedWeight: s.pricedWeight,
@@ -108,6 +116,7 @@ export async function computeMany(codes, { withNav = false } = {}) {
       coveragePct: s.coveragePct,
       nav: nav.nav ?? null, navDate: nav.navDate ?? null,
       navChange: nav.navChange ?? null, navChangePct: nav.navChangePct ?? null,
+      officialToday: isOfficialToday(nav.navDate),
     };
   });
 }
