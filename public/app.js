@@ -81,15 +81,48 @@ $('backBtn').addEventListener('click', showHome);
 
 /* ---------------------------- Home: ranking boards ---------------------------- */
 async function loadHome() {
-  loadMarket();
+  const tasks = [loadMarket()];
   if (favorites.length) {
     $('favBoard').classList.remove('hidden');
     $('homeEmpty').classList.add('hidden');
-    loadFavEstimates();
+    tasks.push(loadFavEstimates());
   } else {
     $('favBoard').classList.add('hidden');
     $('homeEmpty').classList.remove('hidden');
   }
+  // "重疊" only means something with 2+ funds to compare
+  if (favorites.length >= 2) tasks.push(loadOverlap());
+  else $('overlapCard').classList.add('hidden');
+  await Promise.all(tasks); // awaited so pull-to-refresh knows when it's done
+}
+
+async function loadOverlap() {
+  const codes = favorites.map((f) => f.code).join(',');
+  try { renderOverlap(await getJSON(`/api/overlap?codes=${encodeURIComponent(codes)}`)); }
+  catch { $('overlapCard').classList.add('hidden'); }
+}
+function renderOverlap(d) {
+  const card = $('overlapCard');
+  if (!d?.stocks?.length || d.fundCount < 2) { card.classList.add('hidden'); return; }
+  $('overlapSub').textContent = `${d.fundCount} 檔常用基金 · 有效曝險`;
+  const top = d.stocks.slice(0, 10);
+  const max = Math.max(0.01, ...top.map((s) => s.exposurePct));
+  $('overlapList').innerHTML = top.map((s) => {
+    const w = Math.round((s.exposurePct / max) * 100);
+    const hot = s.fundCount === d.fundCount; // every fund holds it
+    return `<li class="ov-row">
+      <div class="ov-top">
+        <span class="ov-name">${s.name}${s.code ? `<span class="ov-code">${s.code}</span>` : ''}</span>
+        <span class="ov-exp">${s.exposurePct.toFixed(2)}%</span>
+      </div>
+      <div class="ov-bar${hot ? ' hot' : ''}"><i style="width:${w}%"></i></div>
+      <div class="ov-bot">
+        <span class="ov-funds">${s.fundCount} / ${d.fundCount} 檔持有</span>
+        <span class="ov-chg ${cls(s.changePct)}">${s.changePct == null ? '—' : `${arrow(s.changePct)} ${fmtPct(s.changePct)}`}</span>
+      </div>
+    </li>`;
+  }).join('');
+  card.classList.remove('hidden');
 }
 async function loadMarket() {
   try { renderMarket(await getJSON('/api/market')); } catch { /* keep previous */ }
@@ -109,7 +142,10 @@ async function loadFavEstimates() {
   try {
     const results = (await getJSON(`/api/estimates?codes=${encodeURIComponent(codes)}`)).results || [];
     favRows = results;
-    for (const r of results) favEstimates.set(r.code, r);
+    for (const r of results) {
+      favEstimates.set(r.code, r);
+      recordTrend(r.code, r.estimatedMovePct); // accumulate today's path even from home
+    }
     renderBoard('fav');
     renderFavList();
   } catch { /* keep previous */ }
@@ -290,6 +326,62 @@ $('chartRange').addEventListener('click', (e) => {
   drawChart();
 });
 
+/* ---------------- 今日估算走勢: record each refresh, draw today's path ---------------- */
+const fmtClock = (ts) => { const d = new Date(ts * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+function recordTrend(code, est) {
+  if (est == null || !code) return;
+  const day = todayKey();
+  const all = lsGet('estTrend', {});
+  for (const k of Object.keys(all)) if (all[k].d !== day) delete all[k]; // drop old days
+  let e = all[code];
+  if (!e || e.d !== day) e = { d: day, p: [] };
+  const now = Math.floor(Date.now() / 1000);
+  const last = e.p[e.p.length - 1];
+  if (!last || now - last[0] >= 20) e.p.push([now, +est.toFixed(3)]); // ~1 point per refresh
+  if (e.p.length > 800) e.p.splice(0, e.p.length - 800);
+  all[code] = e;
+  try { localStorage.setItem('estTrend', JSON.stringify(all)); } catch {}
+}
+const getTrend = (code) => { const e = lsGet('estTrend', {})[code]; return e && e.d === todayKey() ? e.p : []; };
+
+function trendChartSVG(pts) {
+  const W = 600, H = 120, pad = 8;
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+  const ys = pts.map((p) => p[1]);
+  let min = Math.min(0, ...ys), max = Math.max(0, ...ys);  // always include the 0% baseline
+  if (max - min < 0.05) max = min + 0.05;
+  const span = max - min;
+  const x = (t) => pad + ((t - t0) / ((t1 - t0) || 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - ((v - min) / span) * (H - 2 * pad);
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(' ');
+  const zy = y(0).toFixed(1);
+  const lastV = ys[ys.length - 1];
+  const c = lastV > 0 ? 'var(--color-up)' : lastV < 0 ? 'var(--color-down)' : 'var(--color-flat)';
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="今日估算走勢">
+    <line x1="0" y1="${zy}" x2="${W}" y2="${zy}" stroke="var(--color-border-primary)" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
+    <path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+
+function renderTrend(code) {
+  const card = $('trendCard');
+  const pts = getTrend(code);
+  card.classList.remove('hidden');
+  if (pts.length < 2) {
+    $('trendChart').innerHTML = '<div class="chart-loading">開著頁面就會逐步累積（每 30 秒記錄一次）</div>';
+    $('trendNow').textContent = ''; $('trendNote').textContent = '';
+    $('trendStart').textContent = ''; $('trendEnd').textContent = '';
+    return;
+  }
+  $('trendChart').innerHTML = trendChartSVG(pts);
+  const lastV = pts[pts.length - 1][1];
+  const nowEl = $('trendNow'); nowEl.textContent = fmtPct(lastV); nowEl.className = `chart-change ${cls(lastV)}`;
+  $('trendNote').textContent = `${pts.length} 筆`;
+  $('trendStart').textContent = fmtClock(pts[0][0]);
+  $('trendEnd').textContent = fmtClock(pts[pts.length - 1][0]);
+}
+
 function showLoading() {
   detailView.dataset.state = 'loading';
   $('fundName').innerHTML = '<span class="skeleton skel-name"></span>';
@@ -298,6 +390,7 @@ function showLoading() {
   $('estMove').innerHTML = '<span class="skeleton skel-hero"></span>';
   $('navLine').classList.add('hidden');
   $('chartCard').classList.add('hidden');
+  $('trendCard').classList.add('hidden');
   $('benchmark').classList.add('hidden');
   $('estCompare').classList.add('hidden');
   $('accNote').classList.add('hidden');
@@ -424,6 +517,8 @@ function render(d, settle) {
   renderBenchmark(heroVal, d.market);
   renderFundamentals(d.fundamentals);
   trackAccuracy(currentCode, d.estimatedMovePct, d.navDate, d.navChangePct);
+  recordTrend(currentCode, d.estimatedMovePct);
+  renderTrend(currentCode);
 
   const t = new Date(d.updatedAt).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
   $('trust').innerHTML = `
@@ -475,6 +570,71 @@ document.addEventListener('visibilitychange', () => {
   if (main.dataset.view === 'detail' && currentCode) { load(currentCode, true); detailTimer = setInterval(() => load(currentCode), DETAIL_MS); }
   else if (main.dataset.view === 'home') { loadHome(); homeTimer = setInterval(loadHome, HOME_MS); }
 });
+
+/* ---------------------------- Pull to refresh (home) ---------------------------- */
+const ptr = $('ptr');
+const homeView = $('homeView');
+const spinner = ptr.querySelector('.ptr-spinner');
+const PTR_TRIGGER = 60, PTR_MAX = 90;
+let ptrStartY = 0, ptrDist = 0, ptrActive = false, ptrRefreshing = false;
+
+const canPull = () => main.dataset.view === 'home' && !ptrRefreshing
+  && !drawer.classList.contains('open') && window.scrollY <= 0;
+
+function ptrSet(dist) {
+  ptrDist = dist;
+  ptr.style.transform = `translateY(${dist}px)`;
+  ptr.style.opacity = String(Math.min(1, dist / PTR_TRIGGER));
+  spinner.style.transform = `rotate(${dist * 4}deg)`;
+  ptr.classList.toggle('ready', dist >= PTR_TRIGGER);
+  homeView.style.transform = `translateY(${dist}px)`;
+}
+function ptrReset() {
+  ptr.classList.add('anim'); homeView.classList.add('anim');
+  ptr.classList.remove('ready', 'spinning');
+  ptr.style.transform = ''; ptr.style.opacity = '';
+  spinner.style.transform = '';
+  homeView.style.transform = '';
+  setTimeout(() => { ptr.classList.remove('anim'); homeView.classList.remove('anim'); }, 260);
+  ptrDist = 0; ptrActive = false;
+}
+async function ptrRefresh() {
+  ptrRefreshing = true;
+  ptr.classList.add('anim', 'spinning'); homeView.classList.add('anim');
+  ptr.style.transform = `translateY(${PTR_TRIGGER}px)`;
+  ptr.style.opacity = '1';
+  spinner.style.transform = '';               // let the spin animation own it
+  homeView.style.transform = `translateY(${PTR_TRIGGER}px)`;
+  const started = Date.now();
+  try { await loadHome(); } catch {}
+  // hold briefly so the spinner reads as feedback rather than a flash
+  const elapsed = Date.now() - started;
+  if (elapsed < 450) await new Promise((r) => setTimeout(r, 450 - elapsed));
+  ptrReset();
+  ptrRefreshing = false;
+}
+
+document.addEventListener('touchstart', (e) => {
+  if (!canPull() || e.touches.length !== 1) return;
+  ptrStartY = e.touches[0].clientY;
+  ptrActive = true; ptrDist = 0;
+  ptr.classList.remove('anim'); homeView.classList.remove('anim');
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (!ptrActive) return;
+  const dy = e.touches[0].clientY - ptrStartY;
+  if (dy <= 0 || window.scrollY > 0) { if (ptrDist) ptrReset(); else ptrActive = false; return; }
+  ptrSet(Math.min(PTR_MAX, dy * 0.5)); // resistance
+  if (e.cancelable) e.preventDefault();  // we own the gesture, no native scroll
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  if (!ptrActive) return;
+  ptrActive = false;
+  if (ptrDist >= PTR_TRIGGER) ptrRefresh(); else ptrReset();
+});
+document.addEventListener('touchcancel', () => { if (ptrActive) ptrReset(); });
 
 /* ---------------------------- Boot ---------------------------- */
 renderFavList();

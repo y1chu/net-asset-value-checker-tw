@@ -85,6 +85,8 @@
 
 <main id="main" class="app-main" data-view="home">
 
+  <div id="ptr" class="ptr" aria-hidden="true"><div class="ptr-spinner"></div></div>
+
   <!-- HOME: ranking boards -->
   <section id="homeView" class="view-home">
     <div id="marketStrip" class="market-strip hidden"></div>
@@ -96,6 +98,14 @@
         </div>
       </div>
       <ol id="favBoardList" class="board-list"></ol>
+    </div>
+
+    <div id="overlapCard" class="board hidden">
+      <div class="board-head">
+        <div class="board-titles"><span class="board-title">持股重疊</span><span class="board-sub" id="overlapSub"></span></div>
+      </div>
+      <ul id="overlapList" class="overlap-list"></ul>
+      <p class="overlap-note">依常用基金之前十大持股加權平均，假設各基金等額持有。重疊愈高，分散效果愈低。</p>
     </div>
 
     <div id="homeEmpty" class="home-empty hidden">
@@ -140,6 +150,18 @@
       </div>
 
       <dl id="trust" class="trust-strip"></dl>
+    </section>
+
+    <section id="trendCard" class="chart-card hidden">
+      <div class="chart-head">
+        <div class="chart-titles">
+          <span class="chart-title">今日估算走勢</span>
+          <span id="trendNow" class="chart-change"></span>
+        </div>
+        <span class="section-note" id="trendNote"></span>
+      </div>
+      <div id="trendChart" class="nav-chart"></div>
+      <div class="chart-foot"><span id="trendStart"></span><span id="trendEnd"></span></div>
     </section>
 
     <section id="chartCard" class="chart-card hidden">

@@ -18,6 +18,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain; /* let our pull-to-refresh own the gesture */
 }
 .hidden { display: none !important; }
 button { font: inherit; cursor: pointer; }
@@ -130,8 +131,27 @@ button { font: inherit; cursor: pointer; }
 .fav-empty { padding: var(--space-9) var(--space-4); text-align: center; color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
 .drawer-hint { margin: var(--space-5) var(--space-3) 0; font-size: var(--font-size-xs); line-height: var(--line-height-relaxed); color: var(--color-text-tertiary); }
 
+/* ---------------------------- Pull to refresh ---------------------------- */
+.ptr {
+  position: absolute; top: -40px; left: 0; right: 0; height: 32px;
+  display: grid; place-items: center; opacity: 0; pointer-events: none; z-index: 1;
+}
+.ptr-spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--color-border-primary);
+  border-top-color: var(--color-accent-primary);
+}
+.ptr.ready .ptr-spinner { border-top-color: var(--color-accent-primary); border-right-color: var(--color-accent-primary); }
+.ptr.spinning .ptr-spinner { animation: ptrspin 0.7s linear infinite; }
+@keyframes ptrspin { to { transform: rotate(360deg); } }
+/* smooth snap-back / settle after the finger lifts */
+.ptr.anim, .view-home.anim {
+  transition: transform var(--duration-normal) var(--easing-settle),
+              opacity var(--duration-normal) var(--easing-default);
+}
+
 /* ---------------------------- Main + view switching ---------------------------- */
-.app-main { max-width: var(--max-width-content); margin: 0 auto; padding: var(--space-7) var(--space-5) var(--space-11); }
+.app-main { position: relative; max-width: var(--max-width-content); margin: 0 auto; padding: var(--space-7) var(--space-5) var(--space-11); }
 .app-main[data-view="home"] .view-detail { display: none; }
 .app-main[data-view="detail"] .view-home { display: none; }
 
@@ -229,6 +249,22 @@ button { font: inherit; cursor: pointer; }
 .chart-foot { display: flex; justify-content: space-between; margin-top: var(--space-3); font-family: var(--font-family-numeral); font-size: var(--font-size-xs); color: var(--color-text-tertiary); font-feature-settings: "tnum" 1; }
 .seg#chartRange button { padding: 5px 10px; }
 .board-empty, .board-loading { padding: var(--space-7) var(--space-4); text-align: center; color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+
+/* ---------------------------- Holdings overlap (home) ---------------------------- */
+.overlap-list { list-style: none; margin: 0; padding: 0; }
+.ov-row { padding: var(--space-4) var(--space-2); border-bottom: 1px solid var(--color-border-secondary); }
+.ov-row:last-child { border-bottom: 0; }
+.ov-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.ov-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-code { margin-left: var(--space-2); font-family: var(--font-family-numeral); font-size: var(--font-size-xs); font-weight: var(--font-weight-normal); color: var(--color-text-tertiary); }
+.ov-exp { font-family: var(--font-family-numeral); font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); font-feature-settings: "tnum" 1; white-space: nowrap; }
+.ov-bar { margin-top: var(--space-3); height: 5px; border-radius: var(--border-radius-full); background: var(--color-bg-tertiary); overflow: hidden; }
+.ov-bar i { display: block; height: 100%; border-radius: inherit; background: var(--color-accent-primary); }
+.ov-bar.hot i { background: var(--color-up); }
+.ov-bot { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--space-2); }
+.ov-funds { font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.ov-chg { font-family: var(--font-family-numeral); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); font-feature-settings: "tnum" 1; }
+.overlap-note { margin: var(--space-5) var(--space-2) 0; font-size: var(--font-size-xs); line-height: var(--line-height-relaxed); color: var(--color-text-tertiary); }
 
 /* ---------------------------- Detail: back + card ---------------------------- */
 .back-btn {

@@ -88,6 +88,52 @@ export async function computeFund(code) {
   };
 }
 
+// Aggregate stock exposure across a set of funds (your favorites). Effective
+// exposure assumes you hold the funds equally: Σ(weight in each fund) / fundCount.
+export async function computeOverlap(codes) {
+  const stockMap = await getStockMap();
+  const funds = await mapLimit(codes, 6, async (code) => {
+    const fund = await getHoldings(code);
+    return {
+      code: fund.fundCode,
+      name: fund.fundName,
+      resolved: fund.holdings.map((h) => ({ ...h, ...resolveName(stockMap, h.name) })),
+    };
+  });
+  const live = funds.filter(Boolean);
+  if (!live.length) return { fundCount: 0, funds: [], stocks: [] };
+
+  const quotes = await getQuotes(live.flatMap((f) => f.resolved));
+  const byStock = new Map();
+  for (const f of live) {
+    for (const h of f.resolved) {
+      const key = h.code || h.name;
+      let s = byStock.get(key);
+      if (!s) { s = { name: h.name, code: h.code, weightSum: 0, funds: new Set() }; byStock.set(key, s); }
+      s.weightSum += h.weight;
+      s.funds.add(f.code);
+    }
+  }
+
+  const n = live.length;
+  const stocks = [...byStock.values()].map((s) => {
+    const q = s.code ? quotes.get(s.code) : null;
+    let changePct = null;
+    if (q && q.last != null && q.prevClose) {
+      const c = (q.last / q.prevClose - 1) * 100;
+      if (Math.abs(c) <= 11) changePct = c; // TW ±10% daily limit; beyond = bad data
+    }
+    return {
+      name: s.name, code: s.code,
+      exposurePct: s.weightSum / n,   // your effective weight if funds held equally
+      fundCount: s.funds.size,
+      changePct,
+    };
+  }).sort((a, b) => b.exposurePct - a.exposurePct);
+
+  return { fundCount: n, funds: live.map((f) => ({ code: f.code, name: f.name })), stocks };
+}
+
 // Batch estimate for many funds. Prices are fetched once across all funds.
 // Returns a lightweight row per fund (no holdings breakdown). Optionally adds NAV.
 export async function computeMany(codes, { withNav = false } = {}) {

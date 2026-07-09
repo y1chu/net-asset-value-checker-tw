@@ -4,7 +4,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { searchFunds } from './fundindex.js';
-import { computeFund, computeMany } from './estimate.js';
+import { computeFund, computeMany, computeOverlap } from './estimate.js';
 import { getNavHistory } from './navhistory.js';
 import { getMarket } from './market.js';
 
@@ -40,6 +40,16 @@ app.get('/api/estimates', async (req, res) => {
   try {
     const codes = String(req.query.codes || '').split(',').map((c) => c.trim()).filter(Boolean).slice(0, 30);
     res.json({ results: codes.length ? await computeMany(codes, { withNav: true }) : [] });
+  } catch (err) {
+    res.status(400).json({ error: err.message || String(err) });
+  }
+});
+
+// GET /api/overlap?codes=A,B,C -> aggregate stock exposure across those funds
+app.get('/api/overlap', async (req, res) => {
+  try {
+    const codes = String(req.query.codes || '').split(',').map((c) => c.trim()).filter(Boolean).slice(0, 20);
+    res.json(codes.length ? await computeOverlap(codes) : { fundCount: 0, funds: [], stocks: [] });
   } catch (err) {
     res.status(400).json({ error: err.message || String(err) });
   }
