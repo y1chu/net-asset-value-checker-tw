@@ -247,6 +247,25 @@ button { font: inherit; cursor: pointer; }
 .nav-chart svg { display: block; width: 100%; height: auto; }
 .chart-loading { height: 132px; display: grid; place-items: center; color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
 .chart-foot { display: flex; justify-content: space-between; margin-top: var(--space-3); font-family: var(--font-family-numeral); font-size: var(--font-size-xs); color: var(--color-text-tertiary); font-feature-settings: "tnum" 1; }
+
+/* custom start-date -> % gain/loss to today */
+.range-picker {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3);
+  margin-top: var(--space-5); padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border-secondary);
+}
+.rp-label { font-size: var(--font-size-xs); color: var(--color-text-tertiary); letter-spacing: var(--letter-spacing-wide); }
+.rp-input {
+  flex: 1; min-width: 130px; height: 36px; padding: 0 var(--space-3);
+  font-family: var(--font-family-numeral); font-size: var(--font-size-sm);
+  color: var(--color-text-primary); background: var(--color-bg-tertiary);
+  border: 1px solid transparent; border-radius: var(--border-radius-sm);
+}
+.rp-input:focus { background: var(--color-bg-secondary); border-color: var(--color-border-focus); }
+.rp-result {
+  font-family: var(--font-family-numeral); font-feature-settings: "tnum" 1;
+  font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); white-space: nowrap;
+}
 .seg#chartRange button { padding: 5px 10px; }
 .board-empty, .board-loading { padding: var(--space-7) var(--space-4); text-align: center; color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
 

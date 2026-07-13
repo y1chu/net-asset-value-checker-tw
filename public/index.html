@@ -152,18 +152,6 @@
       <dl id="trust" class="trust-strip"></dl>
     </section>
 
-    <section id="trendCard" class="chart-card hidden">
-      <div class="chart-head">
-        <div class="chart-titles">
-          <span class="chart-title">今日估算走勢</span>
-          <span id="trendNow" class="chart-change"></span>
-        </div>
-        <span class="section-note" id="trendNote"></span>
-      </div>
-      <div id="trendChart" class="nav-chart"></div>
-      <div class="chart-foot"><span id="trendStart"></span><span id="trendEnd"></span></div>
-    </section>
-
     <section id="chartCard" class="chart-card hidden">
       <div class="chart-head">
         <div class="chart-titles">
@@ -179,6 +167,11 @@
       </div>
       <div id="navChart" class="nav-chart"></div>
       <div class="chart-foot"><span id="chartStart"></span><span id="chartEnd"></span></div>
+      <div class="range-picker">
+        <label class="rp-label" for="rangeStart">自訂起始日</label>
+        <input type="date" id="rangeStart" class="rp-input" />
+        <span id="rangeResult" class="rp-result"></span>
+      </div>
     </section>
 
     <section class="holdings-section">

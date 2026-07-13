@@ -76,6 +76,7 @@ export async function computeFund(code) {
     asOf: fund.asOf,
     nav: nav.nav, navDate: nav.navDate, navChange: nav.navChange, navChangePct: nav.navChangePct,
     officialToday: isOfficialToday(nav.navDate),
+    tradingToday: market ? market.tradingToday : true, // false on weekends/holidays/pre-open
     estimatedMovePct: s.estimatedMovePct,
     disclosedWeight: s.disclosedWeight,
     pricedWeight: s.pricedWeight,
@@ -137,7 +138,7 @@ export async function computeOverlap(codes) {
 // Batch estimate for many funds. Prices are fetched once across all funds.
 // Returns a lightweight row per fund (no holdings breakdown). Optionally adds NAV.
 export async function computeMany(codes, { withNav = false } = {}) {
-  const stockMap = await getStockMap();
+  const [stockMap, market] = await Promise.all([getStockMap(), getMarket().catch(() => null)]);
   const funds = await mapLimit(codes, 6, async (code) => {
     const fund = await getHoldings(code);
     const resolved = fund.holdings.map((h) => ({ ...h, ...resolveName(stockMap, h.name) }));
@@ -163,6 +164,7 @@ export async function computeMany(codes, { withNav = false } = {}) {
       nav: nav.nav ?? null, navDate: nav.navDate ?? null,
       navChange: nav.navChange ?? null, navChangePct: nav.navChangePct ?? null,
       officialToday: isOfficialToday(nav.navDate),
+      tradingToday: market ? market.tradingToday : true,
     };
   });
 }

@@ -24,10 +24,12 @@ const fmtPrice = (v) => (v == null ? '—' : v.toLocaleString('en-US', { maximum
 const cls = (v) => (v == null ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat');
 const dirCls = (v) => (v == null ? 'dir-flat' : v > 0 ? 'dir-up' : v < 0 ? 'dir-down' : 'dir-flat');
 const arrow = (v) => (v == null ? '' : v > 0 ? '▲' : v < 0 ? '▼' : '—');
-// Once the official NAV for today is published, that's the number to show; until
-// then, the intraday estimate is all we have.
-const primaryMove = (r) => (r && r.officialToday ? r.navChangePct : r?.estimatedMovePct);
-const moveTag = (r) => (r && r.officialToday ? '淨' : '估');
+// Show the official NAV when today's is published, OR when the market didn't trade
+// today (weekend / holiday / pre-open) — an "estimate" from stale prices is meaningless.
+// Otherwise the intraday estimate is all we have.
+const useOfficial = (r) => !!r && (r.officialToday || r.tradingToday === false);
+const primaryMove = (r) => (useOfficial(r) ? r.navChangePct : r?.estimatedMovePct);
+const moveTag = (r) => (useOfficial(r) ? '淨' : '估');
 const mmdd = (d) => (d ? d.replace(/^20\d\d\//, '').replace('/', '/') : '');
 const getJSON = async (url) => { const r = await fetch(url); const j = await r.json(); if (!r.ok) throw new Error(j.error || '載入失敗'); return j; };
 const fmtDate = (ts) => { const d = new Date(ts * 1000); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; };
@@ -142,10 +144,7 @@ async function loadFavEstimates() {
   try {
     const results = (await getJSON(`/api/estimates?codes=${encodeURIComponent(codes)}`)).results || [];
     favRows = results;
-    for (const r of results) {
-      favEstimates.set(r.code, r);
-      recordTrend(r.code, r.estimatedMovePct); // accumulate today's path even from home
-    }
+    for (const r of results) favEstimates.set(r.code, r);
     renderBoard('fav');
     renderFavList();
   } catch { /* keep previous */ }
@@ -293,9 +292,12 @@ document.addEventListener('click', (e) => { if (!e.target.closest('.search-wrap'
 form.addEventListener('submit', (e) => { e.preventDefault(); const q = input.value.trim(); if (q) showDetail(q.toUpperCase(), null); });
 
 /* ---------------------------- Detail: load + render ---------------------------- */
-let navSeries = null, chartRange = 132, chartName = null;
+let navSeries = null, chartRange = 132, chartName = null, chartFrom = null;
+const isoDay = (ts) => new Date(ts * 1000).toISOString().slice(0, 10);
+
 async function loadChart(name) {
-  chartName = name; navSeries = null;
+  chartName = name; navSeries = null; chartFrom = null;
+  $('rangeStart').value = ''; $('rangeResult').textContent = '';
   $('chartCard').classList.remove('hidden');
   $('navChart').innerHTML = '<div class="chart-loading">載入中…</div>';
   $('chartChange').textContent = '';
@@ -303,84 +305,60 @@ async function loadChart(name) {
     const { series } = await getJSON(`/api/navhistory?name=${encodeURIComponent(name)}`);
     if (name !== chartName) return; // superseded by another fund
     navSeries = series;
+    if (series?.t?.length) {           // bound the date picker to the data we have
+      $('rangeStart').min = isoDay(series.t[0]);
+      $('rangeStart').max = isoDay(series.t[series.t.length - 1]);
+    }
     drawChart();
   } catch { $('chartCard').classList.add('hidden'); }
 }
+
 function drawChart() {
   if (!navSeries || !navSeries.v || navSeries.v.length < 2) { $('chartCard').classList.add('hidden'); return; }
   $('chartCard').classList.remove('hidden');
   const { v, t } = navSeries;
-  const start = chartRange && chartRange < v.length ? v.length - chartRange : 0;
+
+  // Either a custom start date, or one of the preset look-back windows.
+  let start;
+  if (chartFrom != null) {
+    start = t.findIndex((ts) => ts >= chartFrom);
+    if (start < 0) start = v.length - 2;               // date after the last point
+    start = Math.min(start, v.length - 2);             // always keep >= 2 points
+  } else {
+    start = chartRange && chartRange < v.length ? v.length - chartRange : 0;
+  }
+
   const vs = v.slice(start), ts = t.slice(start);
   $('navChart').innerHTML = lineChartSVG(vs);
-  const chg = (vs[vs.length - 1] / vs[0] - 1) * 100;
+  const chg = (vs[vs.length - 1] / vs[0] - 1) * 100;   // gain/loss from start to today
   const cc = $('chartChange'); cc.textContent = fmtPct(chg); cc.className = `chart-change ${cls(chg)}`;
   $('chartStart').textContent = `${fmtDate(ts[0])}　${fmtPrice(vs[0])}`;
   $('chartEnd').textContent = `${fmtDate(ts[ts.length - 1])}　${fmtPrice(vs[vs.length - 1])}`;
+
+  const rr = $('rangeResult');
+  if (chartFrom != null) {
+    rr.textContent = `${fmtPct(chg)}`;
+    rr.className = `rp-result ${cls(chg)}`;
+  } else { rr.textContent = ''; rr.className = 'rp-result'; }
 }
+
 $('chartRange').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-range]');
   if (!b) return;
   chartRange = +b.dataset.range;
+  chartFrom = null;                         // preset overrides the custom date
+  $('rangeStart').value = '';
   $('chartRange').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
   drawChart();
 });
 
-/* ---------------- 今日估算走勢: record each refresh, draw today's path ---------------- */
-const fmtClock = (ts) => { const d = new Date(ts * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-
-function recordTrend(code, est) {
-  if (est == null || !code) return;
-  const day = todayKey();
-  const all = lsGet('estTrend', {});
-  for (const k of Object.keys(all)) if (all[k].d !== day) delete all[k]; // drop old days
-  let e = all[code];
-  if (!e || e.d !== day) e = { d: day, p: [] };
-  const now = Math.floor(Date.now() / 1000);
-  const last = e.p[e.p.length - 1];
-  if (!last || now - last[0] >= 20) e.p.push([now, +est.toFixed(3)]); // ~1 point per refresh
-  if (e.p.length > 800) e.p.splice(0, e.p.length - 800);
-  all[code] = e;
-  try { localStorage.setItem('estTrend', JSON.stringify(all)); } catch {}
-}
-const getTrend = (code) => { const e = lsGet('estTrend', {})[code]; return e && e.d === todayKey() ? e.p : []; };
-
-function trendChartSVG(pts) {
-  const W = 600, H = 120, pad = 8;
-  const t0 = pts[0][0], t1 = pts[pts.length - 1][0];
-  const ys = pts.map((p) => p[1]);
-  let min = Math.min(0, ...ys), max = Math.max(0, ...ys);  // always include the 0% baseline
-  if (max - min < 0.05) max = min + 0.05;
-  const span = max - min;
-  const x = (t) => pad + ((t - t0) / ((t1 - t0) || 1)) * (W - 2 * pad);
-  const y = (v) => H - pad - ((v - min) / span) * (H - 2 * pad);
-  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(' ');
-  const zy = y(0).toFixed(1);
-  const lastV = ys[ys.length - 1];
-  const c = lastV > 0 ? 'var(--color-up)' : lastV < 0 ? 'var(--color-down)' : 'var(--color-flat)';
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="今日估算走勢">
-    <line x1="0" y1="${zy}" x2="${W}" y2="${zy}" stroke="var(--color-border-primary)" stroke-width="1" stroke-dasharray="5 5" vector-effect="non-scaling-stroke"/>
-    <path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-  </svg>`;
-}
-
-function renderTrend(code) {
-  const card = $('trendCard');
-  const pts = getTrend(code);
-  card.classList.remove('hidden');
-  if (pts.length < 2) {
-    $('trendChart').innerHTML = '<div class="chart-loading">開著頁面就會逐步累積（每 30 秒記錄一次）</div>';
-    $('trendNow').textContent = ''; $('trendNote').textContent = '';
-    $('trendStart').textContent = ''; $('trendEnd').textContent = '';
-    return;
-  }
-  $('trendChart').innerHTML = trendChartSVG(pts);
-  const lastV = pts[pts.length - 1][1];
-  const nowEl = $('trendNow'); nowEl.textContent = fmtPct(lastV); nowEl.className = `chart-change ${cls(lastV)}`;
-  $('trendNote').textContent = `${pts.length} 筆`;
-  $('trendStart').textContent = fmtClock(pts[0][0]);
-  $('trendEnd').textContent = fmtClock(pts[pts.length - 1][0]);
-}
+$('rangeStart').addEventListener('change', (e) => {
+  const val = e.target.value;
+  if (!val) { chartFrom = null; drawChart(); return; }
+  chartFrom = Date.parse(`${val}T00:00:00Z`) / 1000;
+  $('chartRange').querySelectorAll('button').forEach((x) => x.classList.remove('on')); // custom range
+  drawChart();
+});
 
 function showLoading() {
   detailView.dataset.state = 'loading';
@@ -390,7 +368,6 @@ function showLoading() {
   $('estMove').innerHTML = '<span class="skeleton skel-hero"></span>';
   $('navLine').classList.add('hidden');
   $('chartCard').classList.add('hidden');
-  $('trendCard').classList.add('hidden');
   $('benchmark').classList.add('hidden');
   $('estCompare').classList.add('hidden');
   $('accNote').classList.add('hidden');
@@ -486,15 +463,20 @@ function render(d, settle) {
 
   // Once today's official NAV is published, it becomes the headline; the estimate
   // and its error move to a secondary line.
-  const official = !!(d.officialToday && d.navChangePct != null);
+  const closed = d.tradingToday === false;          // weekend / holiday / pre-open
+  const official = !!(useOfficial(d) && d.navChangePct != null);
   const heroVal = official ? d.navChangePct : d.estimatedMovePct;
   hero.className = `hero ${dirCls(heroVal)}`;
   $('estArrow').textContent = arrow(heroVal);
   $('estMove').textContent = fmtPct(heroVal);
-  $('estLabel').textContent = official ? '今日淨值漲跌' : '今日估算漲跌';
-  $('estSub').textContent = official ? `官方公告淨值　${d.navDate ? mmdd(d.navDate) : ''}` : '依已揭露持股加權估算';
+  $('estLabel').textContent = official ? (d.officialToday ? '今日淨值漲跌' : '最新淨值漲跌') : '今日估算漲跌';
+  $('estSub').textContent = official
+    ? `${closed && !d.officialToday ? '休市 · ' : ''}官方公告淨值　${d.navDate ? mmdd(d.navDate) : ''}`
+    : '依已揭露持股加權估算';
+  // Only compare estimate vs actual for the SAME day — on a closed day the estimate
+  // would come from stale prices, so there's nothing meaningful to compare.
   const ec = $('estCompare');
-  if (official && d.estimatedMovePct != null) {
+  if (official && d.officialToday && !closed && d.estimatedMovePct != null) {
     const diff = d.estimatedMovePct - d.navChangePct;
     ec.innerHTML = `<span class="ec-label">今日估算</span><span class="${cls(d.estimatedMovePct)}">${fmtPct(d.estimatedMovePct)}</span>`
       + `<span class="ec-label">誤差</span><span class="ec-diff">${fmtPct(diff)}</span>`;
@@ -517,8 +499,6 @@ function render(d, settle) {
   renderBenchmark(heroVal, d.market);
   renderFundamentals(d.fundamentals);
   trackAccuracy(currentCode, d.estimatedMovePct, d.navDate, d.navChangePct);
-  recordTrend(currentCode, d.estimatedMovePct);
-  renderTrend(currentCode);
 
   const t = new Date(d.updatedAt).toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
   $('trust').innerHTML = `
